@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Car Configurator</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body {
+        width: 100%; height: 100%;
+        background: #0c0c16;
+        overflow: hidden;
+        font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      canvas { display: block; }
+
+      /* ── Loading ─────────────────────────────────────────────── */
+      #overlay {
+        position: fixed; inset: 0;
+        background: #0c0c16;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 18px;
+        z-index: 100;
+        transition: opacity 0.9s ease;
+      }
+      #overlay.gone { opacity: 0; pointer-events: none; }
+
+      .spinner {
+        width: 42px; height: 42px;
+        border: 3px solid rgba(255,255,255,0.07);
+        border-top-color: #cc2211;
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      #prog {
+        font-size: 10px;
+        letter-spacing: 0.28em;
+        color: rgba(255,255,255,0.3);
+        text-transform: uppercase;
+      }
+
+      /* ── Panel ───────────────────────────────────────────────── */
+      #panel {
+        position: fixed;
+        left: 22px; top: 50%;
+        transform: translateY(-50%);
+        width: 220px;
+        background: rgba(8, 8, 18, 0.88);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 16px;
+        backdrop-filter: blur(22px);
+        -webkit-backdrop-filter: blur(22px);
+        padding: 22px 18px 18px;
+        z-index: 10; color: #fff;
+        box-shadow: 0 28px 64px rgba(0,0,0,0.65),
+                    inset 0 0 0 1px rgba(255,255,255,0.04);
+      }
+
+      .brand-header {
+        display: flex; flex-direction: column; gap: 3px;
+        margin-bottom: 20px; padding-bottom: 16px;
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+      }
+      .brand-name {
+        font-size: 17px; font-weight: 700;
+        letter-spacing: 0.14em; color: #cc2211;
+      }
+      .brand-sub {
+        font-size: 8px; letter-spacing: 0.38em;
+        color: rgba(255,255,255,0.28); text-transform: uppercase;
+      }
+
+      .section { margin-bottom: 18px; }
+
+      .sec-label {
+        font-size: 8px; letter-spacing: 0.36em;
+        color: rgba(255,255,255,0.28); text-transform: uppercase;
+        margin-bottom: 11px;
+      }
+
+      /* swatches */
+      .swatch-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+
+      .swatch {
+        width: 24px; height: 24px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: transform 0.15s, border-color 0.15s;
+        outline: none;
+      }
+      .swatch:hover { transform: scale(1.18); }
+      .swatch.active {
+        border-color: #fff;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+      }
+
+      .picker-row { display: flex; align-items: center; gap: 9px; }
+      .picker-row input[type="color"] {
+        width: 28px; height: 28px;
+        border: none; padding: 0; background: none; cursor: pointer;
+      }
+      .picker-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+      .picker-row input[type="color"]::-webkit-color-swatch { border: none; border-radius: 5px; }
+      #colorName { font-size: 10px; color: rgba(255,255,255,0.45); letter-spacing: 0.04em; }
+
+      /* option buttons */
+      .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+      .opt {
+        display: flex; align-items: center; gap: 6px;
+        padding: 7px 9px;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        background: rgba(255,255,255,0.025);
+        color: rgba(255,255,255,0.45);
+        font-size: 9.5px; letter-spacing: 0.05em;
+        cursor: pointer;
+        transition: border-color 0.16s, background 0.16s, color 0.16s;
+        outline: none;
+      }
+      .opt:hover {
+        border-color: rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.07);
+        color: #fff;
+      }
+      .opt.active {
+        border-color: #cc2211;
+        background: rgba(204,34,17,0.13);
+        color: #fff;
+      }
+      .opt-dot {
+        width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
+        border: 1px solid rgba(255,255,255,0.1);
+      }
+
+      hr.div {
+        border: none; border-top: 1px solid rgba(255,255,255,0.07);
+        margin: 16px 0;
+      }
+
+      #saveBtn {
+        width: 100%; padding: 9px;
+        border: 1px solid rgba(204,34,17,0.35);
+        border-radius: 8px;
+        background: rgba(204,34,17,0.08);
+        color: rgba(255,80,60,0.85);
+        font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+        cursor: pointer;
+        transition: background 0.18s, border-color 0.18s;
+      }
+      #saveBtn:hover {
+        background: rgba(204,34,17,0.2);
+        border-color: rgba(204,34,17,0.65);
+        color: #ff6050;
+      }
+
+      /* ── Hint ────────────────────────────────────────────────── */
+      #hint {
+        position: fixed; bottom: 18px; left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255,255,255,0.2);
+        font-size: 11px; letter-spacing: 0.1em;
+        pointer-events: none; white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- Loading overlay -->
+    <div id="overlay">
+      <div class="spinner"></div>
+      <div id="prog">Loading environment…</div>
+    </div>
+
+    <!-- Configurator panel -->
+    <aside id="panel">
+      <div class="brand-header">
+        <div class="brand-name">FERRARI</div>
+        <div class="brand-sub">Configurator</div>
+      </div>
+
+      <!-- Body color -->
+      <div class="section">
+        <div class="sec-label">Body Color</div>
+        <div class="swatch-row" id="swatches"></div>
+        <div class="picker-row">
+          <input type="color" id="colorPicker" value="#cc2211" />
+          <span id="colorName">Rosso Corsa</span>
+        </div>
+      </div>
+
+      <hr class="div" />
+
+      <!-- Wheels -->
+      <div class="section">
+        <div class="sec-label">Wheels</div>
+        <div class="btn-grid" id="wheelBtns"></div>
+      </div>
+
+      <hr class="div" />
+
+      <!-- Interior -->
+      <div class="section">
+        <div class="sec-label">Interior</div>
+        <div class="btn-grid" id="interiorBtns"></div>
+      </div>
+
+      <hr class="div" />
+
+      <button id="saveBtn">↓ Save Render</button>
+    </aside>
+
+    <div id="hint">Drag to rotate &nbsp;·&nbsp; Scroll to zoom</div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
